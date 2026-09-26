@@ -107,6 +107,10 @@ export function DashboardApp({ userEmail }: { userEmail: string }) {
   const [toast, setToast] = useState('')
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [panel, setPanel] = useState<'help' | 'settings' | 'notifications' | 'profile' | null>(null)
+  const [emailAlerts, setEmailAlerts] = useState(true)
+  const [lowStockAlerts, setLowStockAlerts] = useState(true)
+  const [compactMode, setCompactMode] = useState(false)
 
   // Dashboard stats (used by the Dashboard and Categories tabs)
   const [stats, setStats] = useState<DashboardStats | null>(null)
@@ -300,11 +304,11 @@ export function DashboardApp({ userEmail }: { userEmail: string }) {
             </button>
           ))}
           <p className="nav-label">Support</p>
-          <button className="nav-item">
+          <button className={panel === 'help' ? 'nav-item active' : 'nav-item'} onClick={() => { setPanel('help'); setSidebarOpen(false) }}>
             <CircleHelp />
             Help center
           </button>
-          <button className="nav-item">
+          <button className={panel === 'settings' ? 'nav-item active' : 'nav-item'} onClick={() => { setPanel('settings'); setSidebarOpen(false) }}>
             <Settings />
             Settings
           </button>
@@ -325,7 +329,7 @@ export function DashboardApp({ userEmail }: { userEmail: string }) {
               <strong>{userEmail}</strong>
               <small>Administrator</small>
             </div>
-            <Ellipsis />
+            <button className="profile-more" onClick={() => setPanel('profile')} aria-label="Open profile menu"><Ellipsis /></button>
           </div>
         </div>
       </aside>
@@ -340,11 +344,13 @@ export function DashboardApp({ userEmail }: { userEmail: string }) {
             <strong>{active}</strong>
           </div>
           <div className="top-actions">
-            <button className="icon-button">
+            <button className="icon-button" onClick={() => setPanel('notifications')} aria-label="Open notifications">
               <Bell />
               <i />
             </button>
-            <div className="top-avatar">{userEmail.slice(0, 2).toUpperCase()}</div>
+            <button className="top-avatar" onClick={() => setPanel('profile')} aria-label="Open profile">
+              {userEmail.slice(0, 2).toUpperCase()}
+            </button>
           </div>
         </header>
         <div className="page-content">
@@ -429,6 +435,23 @@ export function DashboardApp({ userEmail }: { userEmail: string }) {
           onSave={saveProduct}
         />
       )}
+      {panel === 'help' && <HelpPanel onClose={() => setPanel(null)} />}
+      {panel === 'settings' && (
+        <SettingsPanel
+          onClose={() => setPanel(null)}
+          dark={dark}
+          setDark={setDark}
+          emailAlerts={emailAlerts}
+          setEmailAlerts={setEmailAlerts}
+          lowStockAlerts={lowStockAlerts}
+          setLowStockAlerts={setLowStockAlerts}
+          compactMode={compactMode}
+          setCompactMode={setCompactMode}
+          onSaved={() => notify('Settings saved')}
+        />
+      )}
+      {panel === 'notifications' && <NotificationsPanel onClose={() => setPanel(null)} lowStockCount={stats?.lowStockCount ?? 0} outOfStockCount={stats?.outOfStockCount ?? 0} />}
+      {panel === 'profile' && <ProfilePanel onClose={() => setPanel(null)} userEmail={userEmail} onLogout={() => signOut()} />}
       {toast && (
         <div className="toast">
           <Check />
@@ -437,6 +460,84 @@ export function DashboardApp({ userEmail }: { userEmail: string }) {
       )}
     </div>
   )
+}
+
+function SidePanel({ title, icon: Icon, onClose, children }: { title: string; icon: typeof Settings; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="panel-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <section className="side-panel" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="side-panel-header">
+          <div className="panel-title"><Icon /><div><h2>{title}</h2><p>ElectroHub workspace</p></div></div>
+          <button className="panel-close" onClick={onClose} aria-label="Close"><X /></button>
+        </div>
+        <div className="side-panel-body">{children}</div>
+      </section>
+    </div>
+  )
+}
+
+function HelpPanel({ onClose }: { onClose: () => void }) {
+  const [search, setSearch] = useState('')
+  const topics = [
+    ['Getting started', 'Add products, edit stock and manage your inventory.'],
+    ['Products', 'Use search, category, stock filters and sorting to find products quickly.'],
+    ['Inventory', 'Review stock levels and open any product for details.'],
+    ['Categories', 'Select a category to jump directly to its products.'],
+    ['Dashboard', 'Your cards and charts are calculated from the current product data.'],
+  ]
+  const filtered = topics.filter(([title, body]) => (title + ' ' + body).toLowerCase().includes(search.toLowerCase()))
+  return (
+    <SidePanel title="Help center" icon={CircleHelp} onClose={onClose}>
+      <div className="help-search"><Search /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search help..." /></div>
+      <div className="help-list">
+        {filtered.map(([title, body]) => <article key={title} className="help-item"><h3>{title}</h3><p>{body}</p></article>)}
+        {!filtered.length && <div className="state-message"><CircleHelp /><strong>No help articles found</strong><p>Try another search.</p></div>}
+      </div>
+      <div className="help-contact"><Headphones /><div><strong>Need more help?</strong><p>Check your Supabase and Vercel environment settings if data is not loading.</p></div></div>
+    </SidePanel>
+  )
+}
+
+function SettingsPanel({
+  onClose, dark, setDark, emailAlerts, setEmailAlerts, lowStockAlerts, setLowStockAlerts, compactMode, setCompactMode, onSaved
+}: {
+  onClose: () => void; dark: boolean; setDark: (v: boolean) => void; emailAlerts: boolean; setEmailAlerts: (v: boolean) => void;
+  lowStockAlerts: boolean; setLowStockAlerts: (v: boolean) => void; compactMode: boolean; setCompactMode: (v: boolean) => void; onSaved: () => void
+}) {
+  return (
+    <SidePanel title="Settings" icon={Settings} onClose={onClose}>
+      <div className="settings-section"><h3>Appearance</h3>
+        <SettingRow title="Dark mode" description="Use the dark ElectroHub interface." checked={dark} onChange={setDark} />
+        <SettingRow title="Compact mode" description="Reduce spacing in inventory lists." checked={compactMode} onChange={setCompactMode} />
+      </div>
+      <div className="settings-section"><h3>Notifications</h3>
+        <SettingRow title="Low-stock alerts" description="Show low-stock information on the dashboard." checked={lowStockAlerts} onChange={setLowStockAlerts} />
+        <SettingRow title="Email alerts" description="Keep email notification preference enabled." checked={emailAlerts} onChange={setEmailAlerts} />
+      </div>
+      <div className="settings-actions"><button className="primary-button" onClick={() => { onSaved(); onClose() }}><Check /> Save settings</button></div>
+    </SidePanel>
+  )
+}
+
+function SettingRow({ title, description, checked, onChange }: { title: string; description: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return <label className="setting-row"><span><strong>{title}</strong><small>{description}</small></span><button type="button" className={checked ? 'switch on' : 'switch'} onClick={() => onChange(!checked)} aria-pressed={checked}><i /></button></label>
+}
+
+function NotificationsPanel({ onClose, lowStockCount, outOfStockCount }: { onClose: () => void; lowStockCount: number; outOfStockCount: number }) {
+  const items = [
+    ...(outOfStockCount ? [{ title: 'Out of stock products', body: outOfStockCount + ' product(s) need attention.', icon: AlertTriangle }] : []),
+    ...(lowStockCount ? [{ title: 'Low stock alert', body: lowStockCount + ' product(s) are at or below minimum stock.', icon: Bell }] : []),
+    ...(!lowStockCount && !outOfStockCount ? [{ title: 'All clear', body: 'No stock alerts right now.', icon: Check }] : []),
+  ]
+  return <SidePanel title="Notifications" icon={Bell} onClose={onClose}><div className="notification-list">{items.map((n, i) => <article className="notification-item" key={i}><div className="notification-icon"><n.icon /></div><div><strong>{n.title}</strong><p>{n.body}</p></div></article>)}</div></SidePanel>
+}
+
+function ProfilePanel({ onClose, userEmail, onLogout }: { onClose: () => void; userEmail: string; onLogout: () => void }) {
+  return <SidePanel title="Profile" icon={Ellipsis} onClose={onClose}>
+    <div className="profile-card-large"><div className="avatar large">{userEmail.slice(0, 2).toUpperCase()}</div><h3>{userEmail}</h3><p>Administrator</p></div>
+    <div className="profile-info"><div><span>Email</span><strong>{userEmail}</strong></div><div><span>Role</span><strong>Administrator</strong></div></div>
+    <button className="outline-button full-width" onClick={onLogout}><LogOut /> Log out</button>
+  </SidePanel>
 }
 
 function StateMessage({
