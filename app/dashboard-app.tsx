@@ -260,7 +260,7 @@ export function DashboardApp({ userEmail }: { userEmail: string }) {
   }
 
   return (
-    <div className={dark ? 'app-shell dark' : 'app-shell light'}>
+    <div className={`${dark ? 'app-shell dark' : 'app-shell light'}${compactMode ? ' compact-mode' : ''}`}>
       <aside className={sidebarOpen ? 'sidebar open' : 'sidebar'}>
         <div className="brand">
           <div className="brand-mark">
